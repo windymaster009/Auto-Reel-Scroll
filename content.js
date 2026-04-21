@@ -31,7 +31,7 @@
     const path = location.pathname.toLowerCase();
 
     if (host.endsWith('instagram.com')) return 'instagram';
-    if (host.endsWith('facebook.com')) return 'facebook';
+    if (host.endsWith('facebook.com') || host === 'fb.watch') return 'facebook';
     if (host.endsWith('tiktok.com')) return 'tiktok';
     if (host.endsWith('youtube.com') && path.startsWith('/shorts/')) return 'youtube';
 

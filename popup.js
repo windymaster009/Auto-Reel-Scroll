@@ -64,7 +64,7 @@ function getPlatformFromUrl(url) {
     const path = parsed.pathname.toLowerCase();
 
     if (host.endsWith('instagram.com')) return { key: 'instagram', supported: true };
-    if (host.endsWith('facebook.com')) return { key: 'facebook', supported: true };
+    if (host.endsWith('facebook.com') || host === 'fb.watch') return { key: 'facebook', supported: true };
     if (host.endsWith('tiktok.com')) return { key: 'tiktok', supported: true };
     if (host.endsWith('youtube.com') && path.startsWith('/shorts/')) return { key: 'youtube', supported: true };
 
