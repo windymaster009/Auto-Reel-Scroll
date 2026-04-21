@@ -184,7 +184,73 @@
     return possible[0];
   }
 
+  function dispatchNavigationKey(key) {
+    const eventOptions = {
+      key,
+      code: key,
+      keyCode: key === 'PageDown' ? 34 : 40,
+      which: key === 'PageDown' ? 34 : 40,
+      bubbles: true,
+      cancelable: true
+    };
+
+    document.dispatchEvent(new KeyboardEvent('keydown', eventOptions));
+    document.dispatchEvent(new KeyboardEvent('keyup', eventOptions));
+  }
+
+  function advanceYoutubeShort() {
+    const nextButton = document.querySelector(
+      'button[aria-label*="Next"], button[title*="Next"], ytd-button-renderer[aria-label*="Next"] button'
+    );
+
+    if (nextButton instanceof HTMLElement) {
+      nextButton.click();
+      return true;
+    }
+
+    dispatchNavigationKey('ArrowDown');
+    return true;
+  }
+
+  function advanceTikTok() {
+    dispatchNavigationKey('ArrowDown');
+
+    const list = document.querySelector('[data-e2e="recommend-list"], [data-e2e="recommend-list-item-container"]');
+    if (list instanceof HTMLElement) {
+      list.scrollBy({ top: Math.round(window.innerHeight * 0.9), behavior: 'auto' });
+      return true;
+    }
+
+    return false;
+  }
+
+  function advanceFacebookReel() {
+    const nextButton = document.querySelector(
+      'div[aria-label*="Next reel"] [role="button"], [aria-label*="Next Reel"], [aria-label*="Next video"]'
+    );
+    if (nextButton instanceof HTMLElement) {
+      nextButton.click();
+      return true;
+    }
+
+    dispatchNavigationKey('PageDown');
+    dispatchNavigationKey('ArrowDown');
+    return true;
+  }
+
   function scrollToNextReel(activeVideo) {
+    const platform = getCurrentPlatform();
+
+    if (platform === 'youtube' && advanceYoutubeShort()) {
+      return;
+    }
+    if (platform === 'tiktok' && advanceTikTok()) {
+      return;
+    }
+    if (platform === 'facebook' && advanceFacebookReel()) {
+      return;
+    }
+
     const behavior = state.settings.smoothScroll ? 'smooth' : 'auto';
     const currentContainer = getScrollableContainer(activeVideo);
     const nextContainer = findNextContainer(currentContainer);
