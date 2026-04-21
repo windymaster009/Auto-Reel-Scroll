@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Reel Scroll</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="popup">
+    <h1>Auto Reel Scroll</h1>
+
+    <label class="row toggle-row" for="enabledToggle">
+      <span>Enable auto scrolling</span>
+      <input id="enabledToggle" type="checkbox" />
+    </label>
+
+    <section class="row column">
+      <label for="delayInput">Delay before next scroll (ms)</label>
+      <input id="delayInput" type="number" min="0" max="15000" step="100" />
+    </section>
+
+    <label class="row" for="smoothToggle">
+      <span>Smooth scrolling</span>
+      <input id="smoothToggle" type="checkbox" />
+    </label>
+
+    <p id="statusText" class="status">Checking tab status…</p>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
