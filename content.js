@@ -1,32 +1,69 @@
 (() => {
   const DEFAULT_SETTINGS = {
     enabled: true,
-    delayMs: 1200,
-    smoothScroll: true
-  };
-
-  const ACTIVE_SITES = {
-    instagram: /(^|\.)instagram\.com$/i,
-    facebook: /(^|\.)facebook\.com$/i,
-    tiktok: /(^|\.)tiktok\.com$/i,
-    youtube: /(^|\.)youtube\.com$/i
+    delay: 1000,
+    smoothScroll: true,
+    platforms: {
+      instagram: true,
+      facebook: true,
+      youtube: true,
+      tiktok: true
+    }
   };
 
   const state = {
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, platforms: { ...DEFAULT_SETTINGS.platforms } },
     activeVideo: null,
     activeVideoKey: null,
     scrollScheduledForKey: null,
     activeVideoEndedListener: null,
     observer: null,
     visibilityCheckTimer: null,
-    lastScrollAt: 0,
     locationHref: location.href,
-    locationCheckTimer: null
+    locationCheckTimer: null,
+    onScrollHandler: null,
+    onResizeHandler: null,
+    lastScrollAt: 0
   };
 
-  function isSupportedHost() {
-    return Object.values(ACTIVE_SITES).some((pattern) => pattern.test(location.hostname));
+  function getCurrentPlatform() {
+    const host = location.hostname.toLowerCase();
+    const path = location.pathname.toLowerCase();
+
+    if (host.endsWith('instagram.com')) return 'instagram';
+    if (host.endsWith('facebook.com')) return 'facebook';
+    if (host.endsWith('tiktok.com')) return 'tiktok';
+    if (host.endsWith('youtube.com') && path.startsWith('/shorts/')) return 'youtube';
+
+    return null;
+  }
+
+  function normalizeSettings(raw = {}) {
+    const oldDelayMs = Number(raw.delayMs);
+    const delay = Number(raw.delay);
+
+    return {
+      enabled: raw.enabled ?? DEFAULT_SETTINGS.enabled,
+      delay: Number.isFinite(delay)
+        ? Math.max(0, Math.min(15000, Math.round(delay)))
+        : (Number.isFinite(oldDelayMs)
+            ? Math.max(0, Math.min(15000, Math.round(oldDelayMs)))
+            : DEFAULT_SETTINGS.delay),
+      smoothScroll: raw.smoothScroll ?? DEFAULT_SETTINGS.smoothScroll,
+      platforms: {
+        instagram: raw.platforms?.instagram ?? DEFAULT_SETTINGS.platforms.instagram,
+        facebook: raw.platforms?.facebook ?? DEFAULT_SETTINGS.platforms.facebook,
+        youtube: raw.platforms?.youtube ?? DEFAULT_SETTINGS.platforms.youtube,
+        tiktok: raw.platforms?.tiktok ?? DEFAULT_SETTINGS.platforms.tiktok
+      }
+    };
+  }
+
+  function shouldRunOnCurrentPage() {
+    const platform = getCurrentPlatform();
+    if (!platform) return false;
+    if (!state.settings.enabled) return false;
+    return Boolean(state.settings.platforms[platform]);
   }
 
   function getVideoKey(video) {
@@ -59,8 +96,7 @@
 
     if (totalArea <= 0) return false;
 
-    const visibilityRatio = visibleArea / totalArea;
-    return visibilityRatio >= 0.25;
+    return visibleArea / totalArea >= 0.25;
   }
 
   function getVideoVisibilityScore(video) {
@@ -79,9 +115,7 @@
   }
 
   function findActiveVideo() {
-    const allVideos = Array.from(document.querySelectorAll('video'));
-    const candidates = allVideos.filter((video) => isVideoVisible(video));
-
+    const candidates = Array.from(document.querySelectorAll('video')).filter(isVideoVisible);
     if (!candidates.length) return null;
 
     candidates.sort((a, b) => getVideoVisibilityScore(b) - getVideoVisibilityScore(a));
@@ -92,39 +126,15 @@
     if (state.activeVideo && state.activeVideoEndedListener) {
       state.activeVideo.removeEventListener('ended', state.activeVideoEndedListener);
     }
+
     state.activeVideoEndedListener = null;
   }
 
-  function handleVideoFinished(reason = 'threshold') {
-    if (!state.settings.enabled || !state.activeVideo) return;
-
-    const key = state.activeVideoKey;
-    if (!key || state.scrollScheduledForKey === key) return;
-
-    const now = Date.now();
-    if (now - state.lastScrollAt < 800) return;
-
-    state.scrollScheduledForKey = key;
-
-    const delay = Number.isFinite(state.settings.delayMs)
-      ? Math.max(0, Math.min(15000, state.settings.delayMs))
-      : DEFAULT_SETTINGS.delayMs;
-
-    window.setTimeout(() => {
-      if (!state.settings.enabled) {
-        state.scrollScheduledForKey = null;
-        return;
-      }
-
-      if (state.activeVideoKey !== key) {
-        state.scrollScheduledForKey = null;
-        return;
-      }
-
-      scrollToNextReel(state.activeVideo);
-      state.lastScrollAt = Date.now();
-      state.scrollScheduledForKey = null;
-    }, delay);
+  function resetActiveState() {
+    detachActiveVideoListener();
+    state.activeVideo = null;
+    state.activeVideoKey = null;
+    state.scrollScheduledForKey = null;
   }
 
   function getScrollableContainer(video) {
@@ -141,16 +151,13 @@
     ];
 
     for (const selector of selectors) {
-      const container = video.closest(selector);
-      if (container) return container;
+      const match = video.closest(selector);
+      if (match) return match;
     }
 
     let current = video.parentElement;
     while (current && current !== document.body) {
-      const rect = current.getBoundingClientRect();
-      if (rect.height > window.innerHeight * 0.5) {
-        return current;
-      }
+      if (current.getBoundingClientRect().height > window.innerHeight * 0.5) return current;
       current = current.parentElement;
     }
 
@@ -160,33 +167,30 @@
   function findNextContainer(currentContainer) {
     if (!currentContainer) return null;
 
-    const all = Array.from(document.querySelectorAll('*')).filter((el) => {
-      if (!(el instanceof HTMLElement)) return false;
-      if (el === currentContainer) return false;
+    const currentTop = currentContainer.getBoundingClientRect().top;
+
+    const possible = Array.from(document.querySelectorAll('*')).filter((el) => {
+      if (!(el instanceof HTMLElement) || el === currentContainer) return false;
       const rect = el.getBoundingClientRect();
+
       if (rect.height < 100 || rect.width < 100) return false;
-      if (rect.top <= currentContainer.getBoundingClientRect().top + 10) return false;
+      if (rect.top <= currentTop + 10) return false;
       return rect.top < window.innerHeight * 2;
     });
 
-    if (!all.length) return null;
+    if (!possible.length) return null;
 
-    all.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-    return all[0];
+    possible.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    return possible[0];
   }
 
   function scrollToNextReel(activeVideo) {
+    const behavior = state.settings.smoothScroll ? 'smooth' : 'auto';
     const currentContainer = getScrollableContainer(activeVideo);
     const nextContainer = findNextContainer(currentContainer);
 
-    const behavior = state.settings.smoothScroll ? 'smooth' : 'auto';
-
     if (nextContainer) {
-      nextContainer.scrollIntoView({
-        behavior,
-        block: 'start',
-        inline: 'nearest'
-      });
+      nextContainer.scrollIntoView({ behavior, block: 'start', inline: 'nearest' });
       return;
     }
 
@@ -196,15 +200,44 @@
     });
   }
 
-  function updateActiveVideo(force = false) {
-    if (!state.settings.enabled && !force) return;
+  function handleVideoFinished() {
+    if (!shouldRunOnCurrentPage()) return;
+    if (!state.activeVideo || !state.activeVideoKey) return;
+
+    if (state.scrollScheduledForKey === state.activeVideoKey) return;
+
+    if (Date.now() - state.lastScrollAt < 800) return;
+
+    const activeKey = state.activeVideoKey;
+    state.scrollScheduledForKey = activeKey;
+
+    window.setTimeout(() => {
+      if (!shouldRunOnCurrentPage()) {
+        state.scrollScheduledForKey = null;
+        return;
+      }
+
+      if (!state.activeVideo || state.activeVideoKey !== activeKey) {
+        state.scrollScheduledForKey = null;
+        return;
+      }
+
+      scrollToNextReel(state.activeVideo);
+      state.lastScrollAt = Date.now();
+      state.scrollScheduledForKey = null;
+    }, state.settings.delay);
+  }
+
+  function updateActiveVideo() {
+    if (!shouldRunOnCurrentPage()) {
+      resetActiveState();
+      return;
+    }
 
     const candidate = findActiveVideo();
     const candidateKey = getVideoKey(candidate);
 
-    if (candidate === state.activeVideo && candidateKey === state.activeVideoKey) {
-      return;
-    }
+    if (candidate === state.activeVideo && candidateKey === state.activeVideoKey) return;
 
     detachActiveVideoListener();
 
@@ -213,22 +246,21 @@
 
     if (!candidate) return;
 
-    const onEnded = () => handleVideoFinished('ended-event');
-    state.activeVideoEndedListener = onEnded;
-    candidate.addEventListener('ended', onEnded);
+    state.activeVideoEndedListener = () => handleVideoFinished();
+    candidate.addEventListener('ended', state.activeVideoEndedListener);
   }
 
   function thresholdLoopCheck() {
-    if (!state.settings.enabled || !state.activeVideo) return;
+    if (!shouldRunOnCurrentPage()) return;
+    if (!state.activeVideo) return;
 
-    const video = state.activeVideo;
-    const duration = video.duration;
-    const currentTime = video.currentTime;
+    const duration = state.activeVideo.duration;
+    const currentTime = state.activeVideo.currentTime;
 
     if (!Number.isFinite(duration) || duration <= 0) return;
 
     if (currentTime >= duration - 0.25) {
-      handleVideoFinished('time-threshold');
+      handleVideoFinished();
     }
   }
 
@@ -238,83 +270,80 @@
     }
 
     state.observer = new MutationObserver(() => {
-      updateActiveVideo(true);
+      updateActiveVideo();
     });
 
-    state.observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: false
-    });
+    state.observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    window.addEventListener('scroll', () => updateActiveVideo(true), { passive: true });
-    window.addEventListener('resize', () => updateActiveVideo(true), { passive: true });
-
-    if (state.visibilityCheckTimer) {
-      clearInterval(state.visibilityCheckTimer);
+    if (state.onScrollHandler) {
+      window.removeEventListener('scroll', state.onScrollHandler);
     }
+    state.onScrollHandler = () => updateActiveVideo();
+    window.addEventListener('scroll', state.onScrollHandler, { passive: true });
+
+    if (state.onResizeHandler) {
+      window.removeEventListener('resize', state.onResizeHandler);
+    }
+    state.onResizeHandler = () => updateActiveVideo();
+    window.addEventListener('resize', state.onResizeHandler, { passive: true });
+
+    if (state.visibilityCheckTimer) clearInterval(state.visibilityCheckTimer);
     state.visibilityCheckTimer = setInterval(() => {
-      updateActiveVideo(true);
+      updateActiveVideo();
       thresholdLoopCheck();
     }, 250);
 
-    if (state.locationCheckTimer) {
-      clearInterval(state.locationCheckTimer);
-    }
+    if (state.locationCheckTimer) clearInterval(state.locationCheckTimer);
     state.locationCheckTimer = setInterval(() => {
       if (state.locationHref !== location.href) {
         state.locationHref = location.href;
         state.scrollScheduledForKey = null;
-        updateActiveVideo(true);
+        updateActiveVideo();
       }
     }, 500);
   }
 
-  function applySettings(newSettings) {
-    state.settings = {
-      ...DEFAULT_SETTINGS,
-      ...newSettings,
-      delayMs: Number(newSettings?.delayMs ?? DEFAULT_SETTINGS.delayMs)
-    };
+  function applySettings(rawSettings) {
+    state.settings = normalizeSettings(rawSettings);
 
-    if (!state.settings.enabled) {
-      detachActiveVideoListener();
-      state.activeVideo = null;
-      state.activeVideoKey = null;
-      state.scrollScheduledForKey = null;
+    if (!shouldRunOnCurrentPage()) {
+      resetActiveState();
       return;
     }
 
-    updateActiveVideo(true);
+    updateActiveVideo();
   }
 
-  function loadSettingsAndStart() {
-    chrome.storage.sync.get(DEFAULT_SETTINGS, (saved) => {
-      applySettings(saved);
+  function init() {
+    chrome.storage.sync.get(DEFAULT_SETTINGS, (raw) => {
+      const settings = normalizeSettings(raw);
+      state.settings = settings;
+
+      // Persist normalized shape for older stored versions.
+      chrome.storage.sync.set(settings);
+
       startObservers();
-      updateActiveVideo(true);
+      updateActiveVideo();
     });
   }
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'sync') return;
 
-    const next = { ...state.settings };
+    const incoming = { ...state.settings };
     let hasRelevantChange = false;
 
-    for (const key of Object.keys(DEFAULT_SETTINGS)) {
+    ['enabled', 'delay', 'delayMs', 'smoothScroll', 'platforms'].forEach((key) => {
       if (changes[key]) {
-        next[key] = changes[key].newValue;
+        incoming[key] = changes[key].newValue;
         hasRelevantChange = true;
       }
-    }
+    });
 
     if (hasRelevantChange) {
-      applySettings(next);
+      applySettings(incoming);
     }
   });
 
-  if (isSupportedHost()) {
-    loadSettingsAndStart();
-  }
+  init();
 })();
