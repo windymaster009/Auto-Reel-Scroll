@@ -213,7 +213,16 @@
   }
 
   function advanceTikTok() {
+    const nextButton = document.querySelector(
+      '[data-e2e*="arrow-down"], [data-e2e*="next"], button[aria-label*="Next"], button[title*="Next"]'
+    );
+    if (nextButton instanceof HTMLElement) {
+      nextButton.click();
+      return true;
+    }
+
     dispatchNavigationKey('ArrowDown');
+    dispatchNavigationKey('PageDown');
 
     const list = document.querySelector('[data-e2e="recommend-list"], [data-e2e="recommend-list-item-container"]');
     if (list instanceof HTMLElement) {
@@ -221,7 +230,19 @@
       return true;
     }
 
-    return false;
+    let scrollParent = state.activeVideo?.parentElement ?? null;
+    while (scrollParent && scrollParent !== document.body) {
+      const styles = window.getComputedStyle(scrollParent);
+      const canScroll = /(auto|scroll)/.test(styles.overflowY) && scrollParent.scrollHeight > scrollParent.clientHeight;
+      if (canScroll) {
+        scrollParent.scrollBy({ top: Math.round(window.innerHeight * 0.9), behavior: 'auto' });
+        return true;
+      }
+      scrollParent = scrollParent.parentElement;
+    }
+
+    window.scrollBy({ top: Math.round(window.innerHeight * 0.9), behavior: 'auto' });
+    return true;
   }
 
   function advanceFacebookReel() {
