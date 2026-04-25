@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Reel Scroll",
+  "description": "Automatically scrolls to the next reel/short when the current video finishes.",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.instagram.com/*",
+    "https://*.facebook.com/*",
+    "https://*.tiktok.com/*",
+    "https://*.youtube.com/*",
+    "https://fb.watch/*"
+  ],
+  "action": {
+    "default_title": "Auto Reel Scroll",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.instagram.com/*",
+        "https://*.facebook.com/*",
+        "https://*.tiktok.com/*",
+        "https://*.youtube.com/shorts/*",
+        "https://fb.watch/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

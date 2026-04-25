@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Reel Scroll</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="popup-card">
+    <header class="header">
+      <h1>Auto Reel Scroll</h1>
+      <p>Smart scrolling for short videos</p>
+    </header>
+
+    <section class="section">
+      <div class="row">
+        <div>
+          <p class="label">Master</p>
+          <p class="hint">Enable or pause extension behavior</p>
+        </div>
+        <label class="switch" for="enabledToggle">
+          <input id="enabledToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="section-title">Platforms</p>
+
+      <div class="platform-grid">
+        <label class="platform-item" for="instagramToggle">
+          <span>Instagram</span>
+          <span class="switch small">
+            <input id="instagramToggle" type="checkbox" />
+            <span class="slider"></span>
+          </span>
+        </label>
+
+        <label class="platform-item" for="facebookToggle">
+          <span>Facebook</span>
+          <span class="switch small">
+            <input id="facebookToggle" type="checkbox" />
+            <span class="slider"></span>
+          </span>
+        </label>
+
+        <label class="platform-item" for="youtubeToggle">
+          <span>YouTube Shorts</span>
+          <span class="switch small">
+            <input id="youtubeToggle" type="checkbox" />
+            <span class="slider"></span>
+          </span>
+        </label>
+
+        <label class="platform-item" for="tiktokToggle">
+          <span>TikTok</span>
+          <span class="switch small">
+            <input id="tiktokToggle" type="checkbox" />
+            <span class="slider"></span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="section-title">Scroll Settings</p>
+
+      <div class="row stacked">
+        <label class="label" for="delayInput">Delay (ms)</label>
+        <input id="delayInput" type="number" min="0" max="15000" step="100" />
+      </div>
+
+      <div class="row">
+        <div>
+          <p class="label">Smooth scroll</p>
+          <p class="hint">Use smooth animation for next reel</p>
+        </div>
+        <label class="switch" for="smoothToggle">
+          <input id="smoothToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section status-section">
+      <p class="section-title">Status</p>
+      <p id="statusText" class="status">Checking current tab…</p>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
